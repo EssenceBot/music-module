@@ -6,7 +6,7 @@
   "type": "module",
   "dependencies": {
     "discord.js": "14.16.2",
-    "damonjs": "1.7.7"
+    "rainlink": "^1.2.2"
   },
   "devDependencies": {
     "@types/bun": "1.1.9"
