@@ -1,9 +1,12 @@
 import type {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  ButtonInteraction,
+  GuildMember,
 } from "discord.js";
 import { rainlink } from "..";
 import { RainlinkLoopMode } from "rainlink";
+import { updateEmbed } from "../embedManager";
 
 export const loopSlashCommandHandler = async (
   slashCommand: SlashCommandBuilder
@@ -27,16 +30,40 @@ export const loopSlashCommandHandler = async (
 export const loopInteractionHandler = async (
   interaction: ChatInputCommandInteraction
 ) => {
+  const mode = interaction.options.getString("mode") as RainlinkLoopMode;
+  loopHandler(interaction, mode);
+};
+
+export const loopHandler = async (
+  interaction: ChatInputCommandInteraction | ButtonInteraction,
+  mode: RainlinkLoopMode
+) => {
+  const voiceChannel = (interaction.member as GuildMember)?.voice.channel;
+  if (!voiceChannel) {
+    await interaction.reply({
+      content: "You need to be in a voice channel",
+      ephemeral: true,
+    });
+    Bun.sleep(5000).then(() => interaction.deleteReply());
+    return;
+  }
   const player = rainlink.players.get(interaction.guildId as string);
   if (!player) {
     await interaction.reply({
       content: "There is no player on current server",
       ephemeral: true,
     });
-    Bun.sleep(3000).then(() => interaction.deleteReply());
+    Bun.sleep(5000).then(() => interaction.deleteReply());
     return;
   }
-  const mode = interaction.options.getString("mode") as RainlinkLoopMode;
+  if (voiceChannel.id !== player.voiceId) {
+    await interaction.reply({
+      content: "You need to be in the same voice channel as the bot",
+      ephemeral: true,
+    });
+    Bun.sleep(5000).then(() => interaction.deleteReply());
+    return;
+  }
   if (!mode) {
     const currentMode = player.loop;
     if (currentMode === RainlinkLoopMode.NONE) {
@@ -44,7 +71,7 @@ export const loopInteractionHandler = async (
       await interaction.reply({
         content: "Looping song",
       });
-      Bun.sleep(3000).then(() => interaction.deleteReply());
+      Bun.sleep(5000).then(() => interaction.deleteReply());
       return;
     }
     if (currentMode === RainlinkLoopMode.SONG) {
@@ -52,12 +79,13 @@ export const loopInteractionHandler = async (
       await interaction.reply({
         content: "Disabled loop",
       });
-      Bun.sleep(3000).then(() => interaction.deleteReply());
+      Bun.sleep(5000).then(() => interaction.deleteReply());
       return;
     }
     return;
   }
   player.setLoop(mode);
+  updateEmbed(interaction.guildId as string);
   let modeMessage = "";
   switch (mode) {
     case RainlinkLoopMode.QUEUE:
@@ -73,5 +101,5 @@ export const loopInteractionHandler = async (
   await interaction.reply({
     content: modeMessage,
   });
-  Bun.sleep(3000).then(() => interaction.deleteReply());
+  Bun.sleep(5000).then(() => interaction.deleteReply());
 };

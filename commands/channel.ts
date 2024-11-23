@@ -13,7 +13,7 @@ import {
 } from "@essence-discord-bot/api/botExtension";
 import { handlePlay } from "./play";
 import { getGuildIds, setBotChannelEmbedId, setBotChannelId } from "../lib";
-import { waitingEmbed } from "../embeds/waiting";
+import { createMessage } from "../embedManager";
 
 export const createChannelMessageListenerFromId = (channelId: string) => {
   createChannelMessageListener(channelId, channelMessageHandler);
@@ -21,7 +21,7 @@ export const createChannelMessageListenerFromId = (channelId: string) => {
 
 const channelMessageHandler = async (message: Message) => {
   if (message.author.bot) return;
-  Bun.sleep(3000).then(() => message.delete());
+  Bun.sleep(5000).then(() => message.delete());
   await handlePlay(
     message.guildId as string,
     message.channelId as string,
@@ -117,9 +117,10 @@ const handleCreateNameSubcommand = async (
   }
   setBotChannelId(channel.id, interaction.guildId as string);
   createChannelMessageListenerFromId(channel.id);
-  const embedMessage = await channel.send({
-    embeds: [await waitingEmbed(interaction.guildId as string)],
-  });
+  const messageContent = await createMessage(interaction.guildId as string);
+  const embedMessage = await (channel as TextChannel).send(
+    messageContent as any
+  );
   setBotChannelEmbedId(embedMessage.id, channel.id);
   await interaction.reply({
     content: `Bot channel created: ${channel.name}`,
@@ -154,9 +155,10 @@ const handleCreateIdSubcommand = async (
   }
   setBotChannelId(channel.id, interaction.guildId as string);
   createChannelMessageListenerFromId(channel.id);
-  const embedMessage = await (channel as TextChannel).send({
-    embeds: [await waitingEmbed(interaction.guildId as string)],
-  });
+  const messageContent = await createMessage(interaction.guildId as string);
+  const embedMessage = await (channel as TextChannel).send(
+    messageContent as any
+  );
   setBotChannelEmbedId(embedMessage.id, channel.id);
   await interaction.reply({
     content: `Bot channel set to: ${channel.name}`,

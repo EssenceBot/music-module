@@ -8,6 +8,8 @@ import {
 } from "discord.js";
 import { bot } from "@essence-discord-bot/index";
 import { rainlink } from "..";
+import { getVolume } from "../lib";
+import { updateEmbed } from "../embedManager";
 
 export const playSlashCommandHandler = (slashCommand: SlashCommandBuilder) => {
   slashCommand
@@ -46,7 +48,7 @@ export const playInteractionHandler = async (
       content: "This command can only be used in a server",
       ephemeral: true,
     });
-    Bun.sleep(3000).then(() => interaction.deleteReply());
+    Bun.sleep(5000).then(() => interaction.deleteReply());
   }
 };
 
@@ -65,83 +67,83 @@ export const handlePlay = async (
     console.log("Channel not found");
     return;
   }
-  if (voiceChannel) {
-    let player = rainlink.players.get(guildId);
-    if (!player) {
-      player = await rainlink.create({
-        guildId: guildId,
-        textId: textId,
-        voiceId: voiceChannel.id,
-        shardId: shardId,
-        volume: 40,
-      });
-    } else if (
-      voiceChannel !== bot.guilds.cache.get(guildId)?.members?.me?.voice.channel
-    ) {
-      if (interaction) {
-        await interaction.reply({
-          content: "Bot is not in the same voice channel",
-          ephemeral: true,
-        });
-        Bun.sleep(3000).then(() => interaction.deleteReply());
-      } else {
-        channel.send("Bot is not in the same voice channel");
-        Bun.sleep(3000).then(() => channel.delete());
-      }
-      return;
-    }
-    const result = await rainlink.search(query, {
-      requester: user,
-    });
-
-    if (!result.tracks.length) {
-      if (interaction) {
-        await interaction.reply({
-          content: "No tracks found",
-          ephemeral: true,
-        });
-        Bun.sleep(3000).then(() => interaction.deleteReply());
-      } else {
-        const message = await channel.send("No tracks found");
-        Bun.sleep(3000).then(() => message.delete());
-      }
-      return;
-    }
-    if (result.type === "PLAYLIST")
-      for (let track of result.tracks) player.queue.add(track);
-    else if (player.playing && result.type === "SEARCH")
-      player.queue.add(result.tracks[0]);
-    else if (player.playing && result.type !== "SEARCH")
-      for (let track of result.tracks) player.queue.add(track);
-    else player.queue.add(result.tracks[0]);
-    if (!player.playing) player.play();
-    if (interaction) {
-      await interaction.reply({
-        content:
-          result.type === "PLAYLIST"
-            ? `Queued ${result.tracks.length} from ${result.playlistName}`
-            : `Queued ${result.tracks[0].title}`,
-      });
-      Bun.sleep(3000).then(() => interaction.deleteReply());
-    } else {
-      const message = await channel.send(
-        result.type === "PLAYLIST"
-          ? `Queued ${result.tracks.length} from ${result.playlistName}`
-          : `Queued ${result.tracks[0].title}`
-      );
-      Bun.sleep(3000).then(() => message.delete());
-    }
-    return;
-  } else {
+  if (!voiceChannel) {
     if (interaction) {
       await interaction.reply({
         content: "You need to be in a voice channel",
         ephemeral: true,
       });
-      Bun.sleep(3000).then(() => interaction.deleteReply());
+      Bun.sleep(5000).then(() => interaction.deleteReply());
     } else {
       channel.send("You need to be in a voice channel");
-      Bun.sleep(3000).then(() => channel.delete());
+      Bun.sleep(5000).then(() => channel.delete());
     }
+    return;
   }
+  let player = rainlink.players.get(guildId);
+  if (!player) {
+    const volume = await getVolume(guildId);
+    player = await rainlink.create({
+      guildId: guildId,
+      textId: textId,
+      voiceId: voiceChannel.id,
+      shardId: shardId,
+      volume: volume ?? 40,
+    });
+  } else if (voiceChannel.id !== player.voiceId) {
+    if (interaction) {
+      await interaction.reply({
+        content: "Bot is not in the same voice channel",
+        ephemeral: true,
+      });
+      Bun.sleep(5000).then(() => interaction.deleteReply());
+    } else {
+      channel.send("Bot is not in the same voice channel");
+      Bun.sleep(5000).then(() => channel.delete());
+    }
+    return;
+  }
+  const result = await rainlink.search(query, {
+    requester: user,
+  });
+
+  if (!result.tracks.length) {
+    if (interaction) {
+      await interaction.reply({
+        content: "No tracks found",
+        ephemeral: true,
+      });
+      Bun.sleep(5000).then(() => interaction.deleteReply());
+    } else {
+      const message = await channel.send("No tracks found");
+      Bun.sleep(5000).then(() => message.delete());
+    }
+    return;
+  }
+  if (result.type === "PLAYLIST")
+    for (let track of result.tracks) player.queue.add(track);
+  else if (player.playing && result.type === "SEARCH")
+    player.queue.add(result.tracks[0]);
+  else if (player.playing && result.type !== "SEARCH")
+    for (let track of result.tracks) player.queue.add(track);
+  else player.queue.add(result.tracks[0]);
+  if (!player.playing) player.play();
+  if (interaction) {
+    await interaction.reply({
+      content:
+        result.type === "PLAYLIST"
+          ? `Queued ${result.tracks.length} from ${result.playlistName}`
+          : `Queued ${result.tracks[0].title}`,
+    });
+    Bun.sleep(5000).then(() => interaction.deleteReply());
+  } else {
+    const message = await channel.send(
+      result.type === "PLAYLIST"
+        ? `Queued ${result.tracks.length} from ${result.playlistName}`
+        : `Queued ${result.tracks[0].title}`
+    );
+    Bun.sleep(5000).then(() => message.delete());
+  }
+  updateEmbed(guildId);
+  return;
 };

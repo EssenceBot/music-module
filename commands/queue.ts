@@ -6,17 +6,17 @@ import type {
 } from "discord.js";
 import { rainlink } from "..";
 
-export const clearSlashCommandHandler = (slashCommand: SlashCommandBuilder) => {
-  slashCommand.setName("clear").setDescription("Clear the queue");
+export const queueSlashCommandHandler = (slashCommand: SlashCommandBuilder) => {
+  slashCommand.setName("queue").setDescription("Shows the queue");
 };
 
-export const clearInteractionHandler = async (
+export const queueInteractionHandler = async (
   interaction: ChatInputCommandInteraction
 ) => {
-  clearHandler(interaction);
+  handleQueue(interaction);
 };
 
-export const clearHandler = async (
+export const handleQueue = async (
   interaction: ChatInputCommandInteraction | ButtonInteraction
 ) => {
   const voiceChannel = (interaction.member as GuildMember)?.voice.channel;
@@ -45,10 +45,20 @@ export const clearHandler = async (
     Bun.sleep(5000).then(() => interaction.deleteReply());
     return;
   }
-  player.queue.clear();
-  player.skip();
+  const queue = player.queue;
+  if (queue.length === 0) {
+    await interaction.reply({
+      content: "Queue is empty",
+      ephemeral: true,
+    });
+    Bun.sleep(5000).then(() => interaction.deleteReply());
+    return;
+  }
+  const queueString = queue
+    .map((song, index) => `${index + 1}. ${song.title}`)
+    .join("\n");
   await interaction.reply({
-    content: "Queue cleared",
+    content: `Queue:\n${queueString}`,
   });
   Bun.sleep(5000).then(() => interaction.deleteReply());
 };

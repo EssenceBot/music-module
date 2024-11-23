@@ -1,29 +1,4 @@
-import { rainlink } from "..";
-import { getVolume } from "../lib";
-
-export const waitingEmbed = async (guildId: string) => {
-  const loop = () => {
-    switch (rainlink.players.get(guildId)?.loop) {
-      case "song":
-        return "Song";
-      case "queue":
-        return "Queue";
-      default:
-        return "None";
-    }
-  };
-  let volume = "";
-  const player = rainlink.players.get(guildId);
-  if (!player) {
-    const dbVolume = await getVolume(guildId);
-    if (dbVolume) {
-      volume = `${dbVolume}%`;
-    } else {
-      volume = "40%";
-    }
-  } else {
-    `${player.volume}%`;
-  }
+export const waitingEmbed = (volume: number, loop: string) => {
   return {
     color: 16752324,
     title: "Waiting for something to play",
@@ -35,7 +10,7 @@ export const waitingEmbed = async (guildId: string) => {
     fields: [
       {
         name: "Volume",
-        value: volume,
+        value: `${volume}%`,
         inline: true,
       },
       {
@@ -45,7 +20,7 @@ export const waitingEmbed = async (guildId: string) => {
       },
       {
         name: "Loop",
-        value: loop(),
+        value: loop,
         inline: true,
       },
     ],

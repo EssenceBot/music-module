@@ -126,7 +126,7 @@ export function discordBotInit() {
     message &&
       (await message.edit({ content: `Destroyed player due to inactivity.` }));
     player.destroy();
-    await Bun.sleep(3000).then(() => message?.delete());
+    await Bun.sleep(5000).then(() => message?.delete());
   });
 
   createSlashCommand(playSlashCommandHandler, playInteractionHandler);

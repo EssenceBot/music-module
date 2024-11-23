@@ -9,8 +9,10 @@ import {
   botWarn,
   getBotChannelId,
   getChannelsIds,
-  getGuildIds,
+  getGuildIdsFromChannelIds,
 } from "./lib.ts";
+import type { TextChannel } from "discord.js";
+import { updateEmbed } from "./embedManager.ts";
 
 import {
   channelSlashCommandHandler,
@@ -18,34 +20,45 @@ import {
   createChannelMessageListenerFromId,
 } from "./commands/channel.ts";
 import {
-  playSlashCommandHandler,
-  playInteractionHandler,
-} from "./commands/play.ts";
-import type { TextChannel } from "discord.js";
-import {
-  skipSlashCommandHandler,
-  skipInteractionHandler,
-} from "./commands/skip.ts";
-import {
-  previousSlashCommandHandler,
-  previousInteractionHandler,
-} from "./commands/previous.ts";
-import {
-  pauseSlashCommandHandler,
-  pauseInteractionHandler,
-} from "./commands/pause.ts";
+  clearInteractionHandler,
+  clearSlashCommandHandler,
+} from "./commands/clear.ts";
 import {
   loopSlashCommandHandler,
   loopInteractionHandler,
 } from "./commands/loop.ts";
 import {
+  pauseSlashCommandHandler,
+  pauseInteractionHandler,
+} from "./commands/pause.ts";
+import {
+  playSlashCommandHandler,
+  playInteractionHandler,
+} from "./commands/play.ts";
+import {
+  previousSlashCommandHandler,
+  previousInteractionHandler,
+} from "./commands/previous.ts";
+import {
+  queueSlashCommandHandler,
+  queueInteractionHandler,
+} from "./commands/queue.ts";
+import {
+  seekSlashCommandHandler,
+  seekInteractionHandler,
+} from "./commands/seek.ts";
+import {
   shuffleInteractionHandler,
   shuffleSlashCommandHandler,
 } from "./commands/shuffle.ts";
 import {
-  clearInteractionHandler,
-  clearSlashCommandHandler,
-} from "./commands/clear.ts";
+  skipSlashCommandHandler,
+  skipInteractionHandler,
+} from "./commands/skip.ts";
+import {
+  volumeSlashCommandHandler,
+  volumeInteractionHandler,
+} from "./commands/volume.ts";
 
 if (!process.env.LAVALINK_HOST) {
   throw new Error("LAVALINK_HOST is not defined");
@@ -97,14 +110,26 @@ export const rainlink = new Rainlink({
   nodes: Nodes,
 });
 
-export function discordBotInit() {
-  messageListenersHandling();
+export async function discordBotInit() {
+  await messageListenersHandling();
   nodeHandling();
   slashCommandHandling();
   queueHandling();
   botLog(
-    `Registered 7 slash commands: [play, skip, previous, pause, loop, shuffle, clear]`
+    `Registered 11 slash commands: [channel, clear, loop, pause, play, previous, queue, seek, shuffle, skip, volume]`
   );
+}
+
+export async function lateDiscordBotInit() {
+  await embedHandling();
+}
+
+async function embedHandling() {
+  const ids = await getChannelsIds();
+  const guildIds = await getGuildIdsFromChannelIds(ids);
+  for (const guildId of guildIds) {
+    await updateEmbed(guildId);
+  }
 }
 
 async function messageListenersHandling() {
@@ -135,13 +160,16 @@ function nodeHandling() {
 
 function slashCommandHandling() {
   createSlashCommand(channelSlashCommandHandler, channelInteractionHandler);
-  createSlashCommand(playSlashCommandHandler, playInteractionHandler);
-  createSlashCommand(skipSlashCommandHandler, skipInteractionHandler);
-  createSlashCommand(previousSlashCommandHandler, previousInteractionHandler);
-  createSlashCommand(pauseSlashCommandHandler, pauseInteractionHandler);
-  createSlashCommand(loopSlashCommandHandler, loopInteractionHandler);
-  createSlashCommand(shuffleSlashCommandHandler, shuffleInteractionHandler);
   createSlashCommand(clearSlashCommandHandler, clearInteractionHandler);
+  createSlashCommand(loopSlashCommandHandler, loopInteractionHandler);
+  createSlashCommand(pauseSlashCommandHandler, pauseInteractionHandler);
+  createSlashCommand(playSlashCommandHandler, playInteractionHandler);
+  createSlashCommand(previousSlashCommandHandler, previousInteractionHandler);
+  createSlashCommand(queueSlashCommandHandler, queueInteractionHandler);
+  createSlashCommand(seekSlashCommandHandler, seekInteractionHandler);
+  createSlashCommand(shuffleSlashCommandHandler, shuffleInteractionHandler);
+  createSlashCommand(skipSlashCommandHandler, skipInteractionHandler);
+  createSlashCommand(volumeSlashCommandHandler, volumeInteractionHandler);
 }
 
 function queueHandling() {
@@ -154,7 +182,7 @@ function queueHandling() {
         const message = await channel.send({
           content: `Now playing: ${track.title}`,
         });
-        Bun.sleep(3000).then(() => message.delete());
+        Bun.sleep(5000).then(() => message.delete());
       }
     } else {
       const channel = client.channels.cache.get(player.textId) as TextChannel;
@@ -162,9 +190,10 @@ function queueHandling() {
         const message = await channel.send({
           content: `Now playing: ${track.title}`,
         });
-        Bun.sleep(3000).then(() => message.delete());
+        Bun.sleep(5000).then(() => message.delete());
       }
     }
+    updateEmbed(player.guildId);
   });
 
   rainlink.on("trackEnd", async (player) => {
@@ -176,7 +205,7 @@ function queueHandling() {
         const message = await channel.send({
           content: `Track ended`,
         });
-        Bun.sleep(3000).then(() => message.delete());
+        Bun.sleep(5000).then(() => message.delete());
       }
     } else {
       const channel = client.channels.cache.get(player.textId) as TextChannel;
@@ -184,7 +213,7 @@ function queueHandling() {
         const message = await channel.send({
           content: `Track ended`,
         });
-        Bun.sleep(3000).then(() => message.delete());
+        Bun.sleep(5000).then(() => message.delete());
       }
     }
   });
@@ -198,7 +227,7 @@ function queueHandling() {
         const message = await channel.send({
           content: `Queue is empty`,
         });
-        Bun.sleep(3000).then(() => message.delete());
+        Bun.sleep(5000).then(() => message.delete());
       }
     } else {
       const channel = client.channels.cache.get(player.textId) as TextChannel;
@@ -206,9 +235,10 @@ function queueHandling() {
         const message = await channel.send({
           content: `Queue is empty`,
         });
-        Bun.sleep(3000).then(() => message.delete());
+        Bun.sleep(5000).then(() => message.delete());
       }
     }
-    player.destroy();
+    await player.destroy();
+    updateEmbed(player.guildId);
   });
 }
