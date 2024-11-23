@@ -8,12 +8,14 @@ import {
   botLog,
   botWarn,
   getBotChannelId,
-  isDBEnabled,
+  getChannelsIds,
+  getGuildIds,
 } from "./lib.ts";
 
 import {
   channelSlashCommandHandler,
   channelInteractionHandler,
+  createChannelMessageListenerFromId,
 } from "./commands/channel.ts";
 import {
   playSlashCommandHandler,
@@ -44,23 +46,6 @@ import {
   clearInteractionHandler,
   clearSlashCommandHandler,
 } from "./commands/clear.ts";
-
-export const defaultEmbed = {
-  color: 0xb4befe,
-  author: {
-    name: "Essence bot",
-  },
-  title: "Essence bot music module control",
-  fields: [
-    {
-      name: "Current track",
-      value: "No track playing",
-    },
-  ],
-  timestamp: new Date().toISOString(),
-};
-
-const client = getClient();
 
 if (!process.env.LAVALINK_HOST) {
   throw new Error("LAVALINK_HOST is not defined");
@@ -105,18 +90,28 @@ const Nodes = [
   },
 ];
 
+const client = getClient();
+
 export const rainlink = new Rainlink({
   library: new Library.DiscordJS(client),
   nodes: Nodes,
 });
 
 export function discordBotInit() {
+  messageListenersHandling();
   nodeHandling();
   slashCommandHandling();
   queueHandling();
   botLog(
     `Registered 7 slash commands: [play, skip, previous, pause, loop, shuffle, clear]`
   );
+}
+
+async function messageListenersHandling() {
+  const ids = await getChannelsIds();
+  for (const id of ids) {
+    createChannelMessageListenerFromId(id);
+  }
 }
 
 function nodeHandling() {
@@ -151,16 +146,15 @@ function slashCommandHandling() {
 
 function queueHandling() {
   rainlink.on("trackStart", async (player, track) => {
-    if (isDBEnabled()) {
-      if (await getBotChannelId()) {
-        const channel = client.channels.cache.get(
-          (await getBotChannelId()) as string
-        ) as TextChannel;
-        if (channel) {
-          channel.send({
-            content: `Now playing: ${track.title}`,
-          });
-        }
+    if (await getBotChannelId(player.guildId)) {
+      const channel = client.channels.cache.get(
+        (await getBotChannelId(player.guildId)) as string
+      ) as TextChannel;
+      if (channel) {
+        const message = await channel.send({
+          content: `Now playing: ${track.title}`,
+        });
+        Bun.sleep(3000).then(() => message.delete());
       }
     } else {
       const channel = client.channels.cache.get(player.textId) as TextChannel;
@@ -174,16 +168,15 @@ function queueHandling() {
   });
 
   rainlink.on("trackEnd", async (player) => {
-    if (isDBEnabled()) {
-      if (await getBotChannelId()) {
-        const channel = client.channels.cache.get(
-          (await getBotChannelId()) as string
-        ) as TextChannel;
-        if (channel) {
-          channel.send({
-            content: `Track ended`,
-          });
-        }
+    if (await getBotChannelId(player.guildId)) {
+      const channel = client.channels.cache.get(
+        (await getBotChannelId(player.guildId)) as string
+      ) as TextChannel;
+      if (channel) {
+        const message = await channel.send({
+          content: `Track ended`,
+        });
+        Bun.sleep(3000).then(() => message.delete());
       }
     } else {
       const channel = client.channels.cache.get(player.textId) as TextChannel;
@@ -197,16 +190,15 @@ function queueHandling() {
   });
 
   rainlink.on("queueEmpty", async (player) => {
-    if (isDBEnabled()) {
-      if (await getBotChannelId()) {
-        const channel = client.channels.cache.get(
-          (await getBotChannelId()) as string
-        ) as TextChannel;
-        if (channel) {
-          channel.send({
-            content: `Queue is empty`,
-          });
-        }
+    if (await getBotChannelId(player.guildId)) {
+      const channel = client.channels.cache.get(
+        (await getBotChannelId(player.guildId)) as string
+      ) as TextChannel;
+      if (channel) {
+        const message = await channel.send({
+          content: `Queue is empty`,
+        });
+        Bun.sleep(3000).then(() => message.delete());
       }
     } else {
       const channel = client.channels.cache.get(player.textId) as TextChannel;

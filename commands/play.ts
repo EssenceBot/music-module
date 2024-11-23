@@ -25,7 +25,6 @@ export const playInteractionHandler = async (
   interaction: ChatInputCommandInteraction
 ) => {
   const query = interaction.options.getString("query") as string;
-  console.log(`Query: ${query}`);
   if (interaction.channel?.type === ChannelType.GuildText) {
     const guildId = interaction.guildId as string;
     const textId = interaction.channelId as string;

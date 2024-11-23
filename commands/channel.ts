@@ -7,20 +7,17 @@ import {
   type GuildMember,
   type TextChannel,
 } from "discord.js";
-import { RecordId } from "surrealdb";
-import { bot, db } from "@essence-discord-bot/index.ts";
-import { createChannelMessageListener } from "@essence-discord-bot/api/botExtension";
-import { handlePlay } from "./play";
-import { defaultEmbed } from "..";
 import {
-  getBotChannelEmbedId,
-  getBotChannelId,
-  setBotChannelEmbedId,
-  setBotChannelId,
-} from "../lib";
+  createChannelMessageListener,
+  removeChannelMessageListener,
+} from "@essence-discord-bot/api/botExtension";
+import { handlePlay } from "./play";
+import { getGuildIds, setBotChannelEmbedId, setBotChannelId } from "../lib";
+import { waitingEmbed } from "../embeds/waiting";
 
-const botChannelId = await getBotChannelId();
-const botChannelEmbedId = await getBotChannelEmbedId();
+export const createChannelMessageListenerFromId = (channelId: string) => {
+  createChannelMessageListener(channelId, channelMessageHandler);
+};
 
 const channelMessageHandler = async (message: Message) => {
   if (message.author.bot) return;
@@ -34,30 +31,6 @@ const channelMessageHandler = async (message: Message) => {
     message.content
   );
 };
-
-const createChannelMessageListenerFromId = (channelId: string) => {
-  console.log(`Creating channel message listener for channel: ${channelId}`);
-  createChannelMessageListener(channelId, channelMessageHandler);
-};
-
-if (botChannelId) {
-  if (!botChannelEmbedId) {
-    (async () => {
-      const channel = (await bot.channels.fetch(botChannelId)) as TextChannel;
-      const embedMessage = await channel.send({
-        embeds: [defaultEmbed],
-      });
-      await db.create(
-        new RecordId("__module__music_config", "botChannelEmbedId"),
-        {
-          botChannelEmbedId: embedMessage.id,
-        }
-      );
-      setBotChannelEmbedId(embedMessage.id);
-    })();
-  }
-  createChannelMessageListenerFromId(botChannelId);
-}
 
 export const channelSlashCommandHandler = (
   slashCommand: SlashCommandBuilder
@@ -110,7 +83,6 @@ export const channelInteractionHandler = async (
         } else if (subcommand === "id") {
           await handleCreateIdSubcommand(interaction);
         }
-        createChannelMessageListenerFromId(botChannelId as string);
         break;
     }
   }
@@ -126,6 +98,12 @@ const handleCreateNameSubcommand = async (
     });
     return;
   }
+  if ((await getGuildIds()).includes(interaction.guildId as string)) {
+    removeChannelMessageListener(
+      interaction.guildId as string,
+      channelMessageHandler
+    );
+  }
   const channel = await interaction.guild?.channels.create({
     name,
     type: ChannelType.GuildText,
@@ -137,30 +115,14 @@ const handleCreateNameSubcommand = async (
     });
     return;
   }
-  if (botChannelId !== undefined) {
-    setBotChannelId(channel.id);
-  } else {
-    await db.create(new RecordId("__module__music_config", "botChannelId"), {
-      botChannelId: channel.id,
-    });
-    setBotChannelId(channel.id);
-  }
+  setBotChannelId(channel.id, interaction.guildId as string);
+  createChannelMessageListenerFromId(channel.id);
   const embedMessage = await channel.send({
-    embeds: [defaultEmbed],
+    embeds: [await waitingEmbed(interaction.guildId as string)],
   });
-  if (botChannelEmbedId !== undefined) {
-    setBotChannelEmbedId(embedMessage.id);
-  } else {
-    await db.create(
-      new RecordId("__module__music_config", "botChannelEmbedId"),
-      {
-        botChannelEmbedId: embedMessage.id,
-      }
-    );
-    setBotChannelEmbedId(embedMessage.id);
-  }
+  setBotChannelEmbedId(embedMessage.id, channel.id);
   await interaction.reply({
-    content: `Bot channel created: ${channel}`,
+    content: `Bot channel created: ${channel.name}`,
     ephemeral: true,
   });
 };
@@ -184,31 +146,20 @@ const handleCreateIdSubcommand = async (
     });
     return;
   }
-  if (botChannelId !== undefined) {
-    setBotChannelId(channel.id);
-  } else {
-    await db.create(new RecordId("__module__music_config", "botChannelId"), {
-      botChannelId: channel.id,
-    });
-    setBotChannelId(channel.id);
-  }
-
-  const embedMessage = await (channel as TextChannel).send({
-    embeds: [defaultEmbed],
-  });
-  if (botChannelEmbedId !== undefined) {
-    setBotChannelEmbedId(embedMessage.id);
-  } else {
-    await db.create(
-      new RecordId("__module__music_config", "botChannelEmbedId"),
-      {
-        botChannelEmbedId: embedMessage.id,
-      }
+  if ((await getGuildIds()).includes(interaction.guildId as string)) {
+    removeChannelMessageListener(
+      interaction.guildId as string,
+      channelMessageHandler
     );
-    setBotChannelEmbedId(embedMessage.id);
   }
+  setBotChannelId(channel.id, interaction.guildId as string);
+  createChannelMessageListenerFromId(channel.id);
+  const embedMessage = await (channel as TextChannel).send({
+    embeds: [await waitingEmbed(interaction.guildId as string)],
+  });
+  setBotChannelEmbedId(embedMessage.id, channel.id);
   await interaction.reply({
-    content: `Bot channel set to: ${channel}`,
+    content: `Bot channel set to: ${channel.name}`,
     ephemeral: true,
   });
 };
