@@ -43,7 +43,13 @@ export function initSkipCommand() {
 
       const currentTrack = player.current;
       
-      player.skip();
+      // If queue is empty, stop and destroy the player
+      if (player.queue.size === 0) {
+        player.stop();
+        player.destroy();
+      } else {
+        player.skip();
+      }
 
       await interaction.editReply({
         content: t(locale, "success.trackSkipped", {

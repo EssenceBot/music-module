@@ -34,7 +34,7 @@ export function initClearCommand() {
         return;
       }
 
-      if (player.queue.size === 0) {
+      if (!player.current && player.queue.size === 0) {
         await interaction.editReply({
           content: t(locale, "errors.queueEmpty"),
         });
@@ -42,7 +42,8 @@ export function initClearCommand() {
       }
 
       player.queue.clear();
-      player.skip();
+      player.stop();
+      player.destroy();
 
       await interaction.editReply({
         content: t(locale, "success.queueCleared"),
