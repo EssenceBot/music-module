@@ -53,7 +53,7 @@ export function initPlayCommand() {
         });
         return;
       }
-      const query = interaction.options.getString(t(locale, "commands.play.queryName"), true);
+      const query = interaction.options.getString(t("en-US", "commands.play.queryName"), true);
 
       if (!client.moonlink.nodes.cache.size) {
         await interaction.editReply({
