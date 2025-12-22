@@ -1,66 +1,68 @@
-import type {
-  ButtonInteraction,
-  ChatInputCommandInteraction,
-  GuildMember,
-  SlashCommandBuilder,
-} from "discord.js";
-import { rainlink } from "..";
-import { updateEmbed } from "../embedManager";
+import type { ChatInputCommandInteraction } from "discord.js";
+import type { SlashCommandBuilder } from "@discordjs/builders";
+import { createSlashCommand } from "@essence-discord-bot/api/botExtension";
+import botLog from "@essence-discord-bot/lib/log";
+import { client } from "../index.js";
+import { moduleName } from "../index.js";
+import { t } from "../lib/i18n.js";
 
-export const pauseSlashCommandHandler = async (
-  slashCommand: SlashCommandBuilder
-) => {
-  slashCommand.setName("pause").setDescription("Pause the current track");
-};
+export function initPauseCommand() {
+  const pauseSlashCommandHandler = (slashCommand: SlashCommandBuilder) => {
+    slashCommand
+      .setName(t("pl", "commands.pause.name"))
+      .setDescription(t("pl", "commands.pause.description"))
+      .setDescriptionLocalizations({
+        "en-US": t("en-US", "commands.pause.description"),
+        "en-GB": t("en-GB", "commands.pause.description"),
+        pl: t("pl", "commands.pause.description"),
+      });
+  };
 
-export const pauseInteractionHandler = async (
-  interaction: ChatInputCommandInteraction
-) => {
-  handlePause(interaction);
-};
+  const pauseInteractionHandler = async (
+    interaction: ChatInputCommandInteraction
+  ) => {
+    await interaction.deferReply();
+    const locale = interaction.locale;
 
-export const handlePause = async (
-  interaction: ChatInputCommandInteraction | ButtonInteraction
-) => {
-  const voiceChannel = (interaction.member as GuildMember)?.voice.channel;
-  if (!voiceChannel) {
-    await interaction.reply({
-      content: "You need to be in a voice channel",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  const player = rainlink.players.get(interaction.guildId as string);
-  if (!player) {
-    await interaction.reply({
-      content: "There is no player on current server",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  if (voiceChannel.id !== player.voiceId) {
-    await interaction.reply({
-      content: "You need to be in the same voice channel as the bot",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  if (player.paused) {
-    await player.resume();
-    updateEmbed(interaction.guildId as string);
-    await interaction.reply({
-      content: "Player resumed",
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  await player.pause();
-  updateEmbed(interaction.guildId as string);
-  await interaction.reply({
-    content: "Player paused",
-  });
-  Bun.sleep(5000).then(() => interaction.deleteReply());
-};
+    try {
+      const player = client.moonlink.players.get(interaction.guildId as string);
+      
+      if (!player) {
+        await interaction.editReply({
+          content: t(locale, "errors.noPlayerActive"),
+        });
+        return;
+      }
+
+      if (!player.current) {
+        await interaction.editReply({
+          content: t(locale, "errors.noTrackPlaying"),
+        });
+        return;
+      }
+
+      if (player.paused) {
+        player.pause();
+        await interaction.editReply({
+          content: t(locale, "success.playerResumed"),
+        });
+      } else {
+        player.pause();
+        await interaction.editReply({
+          content: t(locale, "success.playerPaused"),
+        });
+      }
+
+      Bun.sleep(5000).then(() => interaction.deleteReply());
+    } catch (error) {
+      botLog(moduleName, `Error in pause command: ${error}`, "error");
+      console.error("Error in pause command:", error);
+      await interaction.editReply({
+        content: t(locale, "errors.generalError"),
+      });
+    }
+  };
+
+  createSlashCommand(pauseSlashCommandHandler, pauseInteractionHandler);
+  botLog(moduleName, "Registered slash command: [pause]", "info");
+}

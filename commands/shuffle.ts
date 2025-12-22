@@ -1,55 +1,62 @@
-import type {
-  SlashCommandBuilder,
-  ChatInputCommandInteraction,
-  ButtonInteraction,
-  GuildMember,
-} from "discord.js";
-import { rainlink } from "..";
+import type { ChatInputCommandInteraction } from "discord.js";
+import type { SlashCommandBuilder } from "@discordjs/builders";
+import { createSlashCommand } from "@essence-discord-bot/api/botExtension";
+import botLog from "@essence-discord-bot/lib/log";
+import { client } from "../index.js";
+import { moduleName } from "../index.js";
+import { t } from "../lib/i18n.js";
 
-export const shuffleSlashCommandHandler = (
-  slashCommand: SlashCommandBuilder
-) => {
-  slashCommand.setName("shuffle").setDescription("Shuffle the queue");
-};
+export function initShuffleCommand() {
+  const shuffleSlashCommandHandler = (slashCommand: SlashCommandBuilder) => {
+    slashCommand
+      .setName(t("pl", "commands.shuffle.name"))
+      .setDescription(t("pl", "commands.shuffle.description"))
+      .setDescriptionLocalizations({
+        "en-US": t("en-US", "commands.shuffle.description"),
+        "en-GB": t("en-GB", "commands.shuffle.description"),
+        pl: t("pl", "commands.shuffle.description"),
+      });
+  };
 
-export const shuffleInteractionHandler = async (
-  interaction: ChatInputCommandInteraction
-) => {
-  handleShuffle(interaction);
-};
+  const shuffleInteractionHandler = async (
+    interaction: ChatInputCommandInteraction
+  ) => {
+    await interaction.deferReply();
+    const locale = interaction.locale;
 
-export const handleShuffle = async (
-  interaction: ChatInputCommandInteraction | ButtonInteraction
-) => {
-  const voiceChannel = (interaction.member as GuildMember)?.voice.channel;
-  if (!voiceChannel) {
-    await interaction.reply({
-      content: "You need to be in a voice channel",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  const player = rainlink.players.get(interaction.guildId as string);
-  if (!player) {
-    await interaction.reply({
-      content: "There is no player on current server",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  if (voiceChannel.id !== player.voiceId) {
-    await interaction.reply({
-      content: "You need to be in the same voice channel as the bot",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  player.queue.shuffle();
-  await interaction.reply({
-    content: "Queue shuffled",
-  });
-  Bun.sleep(5000).then(() => interaction.deleteReply());
-};
+    try {
+      const player = client.moonlink.players.get(interaction.guildId as string);
+      
+      if (!player) {
+        await interaction.editReply({
+          content: t(locale, "errors.noPlayerActive"),
+        });
+        return;
+      }
+
+      if (player.queue.size === 0) {
+        await interaction.editReply({
+          content: t(locale, "errors.queueEmpty"),
+        });
+        return;
+      }
+
+      player.queue.shuffle();
+
+      await interaction.editReply({
+        content: t(locale, "success.queueShuffled"),
+      });
+
+      Bun.sleep(5000).then(() => interaction.deleteReply());
+    } catch (error) {
+      botLog(moduleName, `Error in shuffle command: ${error}`, "error");
+      console.error("Error in shuffle command:", error);
+      await interaction.editReply({
+        content: t(locale, "errors.generalError"),
+      });
+    }
+  };
+
+  createSlashCommand(shuffleSlashCommandHandler, shuffleInteractionHandler);
+  botLog(moduleName, "Registered slash command: [shuffle]", "info");
+}

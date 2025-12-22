@@ -1,4 +1,8 @@
+import type { Locale } from "discord.js";
+import { t } from "../lib/i18n";
+
 export const playingEmbed = (
+  locale: Locale | string,
   songTitle: string,
   songUrl: string,
   creatorName: string,
@@ -6,45 +10,45 @@ export const playingEmbed = (
   requesterId: string,
   songDuration: string,
   volume: number,
-  queueLength: number,
+  queueLength: string,
   currentStatus: string,
   loop: string
 ) => {
   return {
     color: 16752324,
-    title: "Now Playing",
-    description: `[${songTitle}](${songUrl}) by ${creatorName}`,
+    title: t(locale, "embed.nowPlaying.title"),
+    description: `[${t(locale, "embed.nowPlaying.description", { songTitle, creatorName })}](${songUrl})`,
     image: {
       url: thumbnailUrl,
     },
     fields: [
       {
-        name: "Requested by",
+        name: t(locale, "embed.nowPlaying.requestedBy"),
         value: `<@${requesterId}>`,
         inline: true,
       },
       {
-        name: "Duration",
+        name: t(locale, "embed.nowPlaying.duration"),
         value: songDuration,
         inline: true,
       },
       {
-        name: "Volume",
+        name: t(locale, "embed.nowPlaying.volume"),
         value: `${volume}%`,
         inline: true,
       },
       {
-        name: "Songs in queue",
+        name: t(locale, "embed.nowPlaying.queueLength"),
         value: queueLength,
         inline: true,
       },
       {
-        name: "Loop",
+        name: t(locale, "embed.nowPlaying.loop"),
         value: loop,
         inline: true,
       },
       {
-        name: "Status",
+        name: t(locale, "embed.nowPlaying.status"),
         value: currentStatus,
         inline: true,
       },

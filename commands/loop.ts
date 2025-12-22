@@ -1,105 +1,86 @@
-import type {
-  SlashCommandBuilder,
-  ChatInputCommandInteraction,
-  ButtonInteraction,
-  GuildMember,
-} from "discord.js";
-import { rainlink } from "..";
-import { RainlinkLoopMode } from "rainlink";
-import { updateEmbed } from "../embedManager";
+import type { ChatInputCommandInteraction } from "discord.js";
+import type { SlashCommandBuilder } from "@discordjs/builders";
+import { createSlashCommand } from "@essence-discord-bot/api/botExtension";
+import botLog from "@essence-discord-bot/lib/log";
+import { client } from "../index";
+import { moduleName } from "../index";
+import { t } from "../lib/i18n";
 
-export const loopSlashCommandHandler = async (
-  slashCommand: SlashCommandBuilder
-) => {
-  slashCommand
-    .setName("loop")
-    .setDescription("Loop the queue")
-    .addStringOption((option) =>
-      option
-        .setName("mode")
-        .setDescription("Loop mode")
-        .setRequired(false)
-        .addChoices(
-          { name: "Queue", value: RainlinkLoopMode.QUEUE },
-          { name: "Song", value: RainlinkLoopMode.SONG },
-          { name: "None", value: RainlinkLoopMode.NONE }
-        )
-    );
-};
+export function initLoopCommand() {
+  const loopSlashCommandHandler = (slashCommand: SlashCommandBuilder) => {
+    slashCommand
+      .setName(t("pl", "commands.loop.name"))
+      .setDescription(t("pl", "commands.loop.description"))
+      .setDescriptionLocalizations({
+        "en-US": t("en-US", "commands.loop.description"),
+        "en-GB": t("en-GB", "commands.loop.description"),
+        pl: t("pl", "commands.loop.description"),
+      })
+      .addStringOption((option) =>
+        option
+          .setName(t("en-US", "commands.loop.modeName"))
+          .setDescription(t("pl", "commands.loop.modeDescription"))
+          .setDescriptionLocalizations({
+            "en-US": t("en-US", "commands.loop.modeDescription"),
+            "en-GB": t("en-GB", "commands.loop.modeDescription"),
+            pl: t("pl", "commands.loop.modeDescription"),
+          })
+          .setRequired(true)
+          .addChoices(
+            { name: "Off", value: "off" },
+            { name: "Track", value: "track" },
+            { name: "Queue", value: "queue" }
+          )
+      );
+  };
 
-export const loopInteractionHandler = async (
-  interaction: ChatInputCommandInteraction
-) => {
-  const mode = interaction.options.getString("mode") as RainlinkLoopMode;
-  loopHandler(interaction, mode);
-};
+  const loopInteractionHandler = async (
+    interaction: ChatInputCommandInteraction
+  ) => {
+    await interaction.deferReply();
+    const locale = interaction.locale;
 
-export const loopHandler = async (
-  interaction: ChatInputCommandInteraction | ButtonInteraction,
-  mode: RainlinkLoopMode
-) => {
-  const voiceChannel = (interaction.member as GuildMember)?.voice.channel;
-  if (!voiceChannel) {
-    await interaction.reply({
-      content: "You need to be in a voice channel",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  const player = rainlink.players.get(interaction.guildId as string);
-  if (!player) {
-    await interaction.reply({
-      content: "There is no player on current server",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  if (voiceChannel.id !== player.voiceId) {
-    await interaction.reply({
-      content: "You need to be in the same voice channel as the bot",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  if (!mode) {
-    const currentMode = player.loop;
-    if (currentMode === RainlinkLoopMode.NONE) {
-      player.setLoop(RainlinkLoopMode.SONG);
-      await interaction.reply({
-        content: "Looping song",
+    try {
+      const player = client.moonlink.players.get(interaction.guildId as string);
+      
+      if (!player) {
+        await interaction.editReply({
+          content: t(locale, "errors.noPlayerActive"),
+        });
+        return;
+      }
+
+      const mode = interaction.options.getString(t(locale, "commands.loop.modeName"), true);
+      
+      switch (mode) {
+        case "off":
+          player.setLoop("off");
+          await interaction.editReply({
+            content: t(locale, "success.loopDisabled"),
+          });
+          break;
+        case "track":
+          player.setLoop("track");
+          await interaction.editReply({
+            content: t(locale, "success.loopTrack"),
+          });
+          break;
+        case "queue":
+          player.setLoop("queue");
+          await interaction.editReply({
+            content: t(locale, "success.loopQueue"),
+          });
+          break;
+      }
+    } catch (error) {
+      botLog(moduleName, `Error in loop command: ${error}`, "error");
+      console.error("Error in loop command:", error);
+      await interaction.editReply({
+        content: t(locale, "errors.generalError"),
       });
-      Bun.sleep(5000).then(() => interaction.deleteReply());
-      return;
     }
-    if (currentMode === RainlinkLoopMode.SONG) {
-      player.setLoop(RainlinkLoopMode.NONE);
-      await interaction.reply({
-        content: "Disabled loop",
-      });
-      Bun.sleep(5000).then(() => interaction.deleteReply());
-      return;
-    }
-    return;
-  }
-  player.setLoop(mode);
-  updateEmbed(interaction.guildId as string);
-  let modeMessage = "";
-  switch (mode) {
-    case RainlinkLoopMode.QUEUE:
-      modeMessage = "Looping queue";
-      break;
-    case RainlinkLoopMode.SONG:
-      modeMessage = "Looping song";
-      break;
-    case RainlinkLoopMode.NONE:
-      modeMessage = "Disabled loop";
-      break;
-  }
-  await interaction.reply({
-    content: modeMessage,
-  });
-  Bun.sleep(5000).then(() => interaction.deleteReply());
-};
+  };
+
+  createSlashCommand(loopSlashCommandHandler, loopInteractionHandler);
+  botLog(moduleName, "Registered slash command: [loop]", "info");
+}

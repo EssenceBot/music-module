@@ -1,149 +1,259 @@
+import type { ChatInputCommandInteraction } from "discord.js";
+import type { SlashCommandBuilder } from "@discordjs/builders";
+import { createSlashCommand } from "@essence-discord-bot/api/botExtension";
+import botLog from "@essence-discord-bot/lib/log";
+import { client } from "../index";
+import { moduleName } from "../index";
+import { t } from "../lib/i18n";
+import { playingEmbed } from "../embeds/playing";
 import {
-  ChannelType,
-  type User,
-  type ChatInputCommandInteraction,
-  type GuildMember,
-  type SlashCommandBuilder,
-  TextChannel,
-} from "discord.js";
-import { bot } from "@essence-discord-bot/index";
-import { rainlink } from "..";
-import { getVolume } from "../lib";
-import { updateEmbed } from "../embedManager";
+  getDatabaseClient,
+  isDatabaseAvailable,
+} from "@essence-discord-bot/api/botExtension";
+import { eq } from "drizzle-orm";
+import { guildVolumeSettings } from "../schema";
 
-export const playSlashCommandHandler = (slashCommand: SlashCommandBuilder) => {
-  slashCommand
-    .setName("play")
-    .setDescription("Add a track to queue and play it")
-    .addStringOption((option) =>
-      option
-        .setName("query")
-        .setDescription("Search query or URL")
-        .setRequired(true)
-    );
-};
+export function initPlayCommand() {
+  const playSlashCommandHandler = (slashCommand: SlashCommandBuilder) => {
+    slashCommand
+      .setName(t("pl", "commands.play.name"))
+      .setDescription(t("pl", "commands.play.description"))
+      .setDescriptionLocalizations({
+        "en-US": t("en-US", "commands.play.description"),
+        "en-GB": t("en-GB", "commands.play.description"),
+        pl: t("pl", "commands.play.description"),
+      })
+      .addStringOption((option) =>
+        option
+          .setName(t("en-US", "commands.play.queryName"))
+          .setDescription(t("pl", "commands.play.queryDescription"))
+          .setDescriptionLocalizations({
+            "en-US": t("en-US", "commands.play.queryDescription"),
+            "en-GB": t("en-GB", "commands.play.queryDescription"),
+            pl: t("pl", "commands.play.queryDescription"),
+          })
+          .setRequired(true)
+      );
+  };
 
-export const playInteractionHandler = async (
-  interaction: ChatInputCommandInteraction
-) => {
-  const query = interaction.options.getString("query") as string;
-  if (interaction.channel?.type === ChannelType.GuildText) {
-    const guildId = interaction.guildId as string;
-    const textId = interaction.channelId as string;
-    const shardId = interaction.guild?.shardId as number;
-    const user = interaction.user;
-    const member = interaction.member as GuildMember;
+  const playInteractionHandler = async (
+    interaction: ChatInputCommandInteraction
+  ) => {
+    await interaction.deferReply();
+    const locale = interaction.locale;
 
-    await handlePlay(
-      guildId,
-      textId,
-      shardId,
-      user,
-      member,
-      query,
-      interaction
-    );
-  } else {
-    await interaction.reply({
-      content: "This command can only be used in a server",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-  }
-};
+    try {
+      // Step 1: Check if the user is in a voice channel
+      const member = interaction.guild?.members.cache.get(interaction.user.id);
+      const voiceChannel = member?.voice.channel;
 
-export const handlePlay = async (
-  guildId: string,
-  textId: string,
-  shardId: number,
-  user: User,
-  member: GuildMember,
-  query: string,
-  interaction?: ChatInputCommandInteraction
-) => {
-  const voiceChannel = (member as GuildMember)?.voice.channel;
-  const channel = bot.channels.cache.get(textId) as TextChannel | undefined;
-  if (!channel) {
-    console.log("Channel not found");
-    return;
-  }
-  if (!voiceChannel) {
-    if (interaction) {
-      await interaction.reply({
-        content: "You need to be in a voice channel",
-        ephemeral: true,
+      if (!voiceChannel) {
+        await interaction.editReply({
+          content: t(locale, "errors.voiceChannelRequired"),
+        });
+        return;
+      }
+      const query = interaction.options.getString(t(locale, "commands.play.queryName"), true);
+
+      if (!client.moonlink.nodes.cache.size) {
+        await interaction.editReply({
+          content: t(locale, "errors.noLavalinkNodes"),
+        });
+        return;
+      }
+
+      const existingPlayer = client.moonlink.players.get(interaction.guildId as string);
+      
+      const player = existingPlayer ?? (() => {
+        const createdPlayer = client.moonlink.players.create({
+          guildId: interaction.guildId as string,
+          voiceChannelId: voiceChannel.id,
+          textChannelId: interaction.channelId,
+          autoPlay: false,
+        });
+        
+        if (!createdPlayer) {
+          throw new Error("Failed to create player");
+        }
+        
+        // Load saved volume from database
+        if (isDatabaseAvailable()) {
+          getDatabaseClient()
+            .select()
+            .from(guildVolumeSettings)
+            .where(eq(guildVolumeSettings.guildId, interaction.guildId as string))
+            .limit(1)
+            .then((settings: typeof guildVolumeSettings.$inferSelect[]) => {
+              if (settings.length > 0) {
+                createdPlayer.setVolume(settings[0].volume);
+                botLog(moduleName, `Loaded saved volume ${settings[0].volume} for guild ${interaction.guildId}`);
+              }
+            })
+            .catch((error: Error) => {
+              botLog(moduleName, `Failed to load volume from database: ${error}`, "warn");
+            });
+        }
+        
+        return createdPlayer;
+      })();
+      
+      if (!existingPlayer && !player) {
+        await interaction.editReply({
+          content: t(locale, "errors.playerCreationFailed"),
+        });
+        return;
+      }
+
+      if (!player.connected) {
+        player.connect();
+      }
+
+      botLog(moduleName, `Searching for: ${query}`);
+      
+      const searchResult = await client.moonlink.search({
+        query: query,
+        requester: interaction.user.id,
       });
-      Bun.sleep(5000).then(() => interaction.deleteReply());
-    } else {
-      channel.send("You need to be in a voice channel");
-      Bun.sleep(5000).then(() => channel.delete());
-    }
-    return;
-  }
-  let player = rainlink.players.get(guildId);
-  if (!player) {
-    const volume = await getVolume(guildId);
-    player = await rainlink.create({
-      guildId: guildId,
-      textId: textId,
-      voiceId: voiceChannel.id,
-      shardId: shardId,
-      volume: volume ?? 40,
-    });
-  } else if (voiceChannel.id !== player.voiceId) {
-    if (interaction) {
-      await interaction.reply({
-        content: "Bot is not in the same voice channel",
-        ephemeral: true,
-      });
-      Bun.sleep(5000).then(() => interaction.deleteReply());
-    } else {
-      channel.send("Bot is not in the same voice channel");
-      Bun.sleep(5000).then(() => channel.delete());
-    }
-    return;
-  }
-  const result = await rainlink.search(query, {
-    requester: user,
-  });
+      
+      botLog(moduleName, `Search result - loadType: ${searchResult.loadType}, tracks: ${searchResult.tracks.length}`);
 
-  if (!result.tracks.length) {
-    if (interaction) {
-      await interaction.reply({
-        content: "No tracks found",
-        ephemeral: true,
+      if (!searchResult.tracks.length) {
+        await interaction.editReply({
+          content: t(locale, "errors.noResults"),
+        });
+        return;
+      }
+
+      switch (searchResult.loadType) {
+        case "playlist":
+          player.queue.add(searchResult.tracks);
+
+          const firstTrack = searchResult.tracks[0];
+          const formatDurationPlaylist = (ms: number) => {
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            
+            if (hours > 0) {
+              return `${hours}:${String(minutes % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+            }
+            return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
+          };
+          
+          const getLoopStatusPlaylist = () => {
+            if (player.loop === "queue") return "Queue";
+            if (player.loop === "track") return "Track";
+            return "Off";
+          };
+          
+          const willStartPlayingPlaylist = !player.playing && !player.paused;
+          
+          const getPlayerStatusPlaylist = () => {
+            if (player.playing) return "Playing";
+            if (player.paused) return "Paused";
+            if (willStartPlayingPlaylist) return "Playing";
+            return "Queued";
+          };
+
+          await interaction.editReply({
+            content: t(locale, "success.playlistAdded", {
+              name: searchResult.playlistInfo?.name || "Unknown",
+              count: searchResult.tracks.length,
+            }),
+            embeds: [playingEmbed(
+              locale,
+              firstTrack.title,
+              firstTrack.url || "",
+              firstTrack.author,
+              firstTrack.artworkUrl || "",
+              interaction.user.id,
+              formatDurationPlaylist(firstTrack.duration),
+              player.volume,
+              String(player.queue.size),
+              getPlayerStatusPlaylist(),
+              getLoopStatusPlaylist()
+            )]
+          });
+
+          if (willStartPlayingPlaylist) {
+            player.play();
+          }
+          break;
+
+        case "search":
+        case "track":
+          const track = searchResult.tracks[0];
+          player.queue.add(track);
+
+          const formatDuration = (ms: number) => {
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            
+            if (hours > 0) {
+              return `${hours}:${String(minutes % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+            }
+            return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
+          };
+          
+          const getLoopStatus = () => {
+            if (player.loop === "queue") return "Queue";
+            if (player.loop === "track") return "Track";
+            return "Off";
+          };
+          
+          const willStartPlaying = !player.playing && !player.paused;
+          
+          const getPlayerStatus = () => {
+            if (player.playing) return "Playing";
+            if (player.paused) return "Paused";
+            if (willStartPlaying) return "Playing";
+            return "Queued";
+          };
+
+          await interaction.editReply({
+            embeds: [playingEmbed(
+              locale,
+              track.title,
+              track.url || "",
+              track.author,
+              track.artworkUrl || "",
+              interaction.user.id,
+              formatDuration(track.duration),
+              player.volume,
+              String(player.queue.size),
+              getPlayerStatus(),
+              getLoopStatus()
+            )]
+          });
+
+          if (willStartPlaying) {
+            player.play();
+          }
+          break;
+
+        case "empty":
+          await interaction.editReply({
+            content: t(locale, "errors.noMatches"),
+          });
+          break;
+
+        case "error":
+          botLog(moduleName, `Search error for query: ${query}`, "error");
+          await interaction.editReply({
+            content: t(locale, "errors.loadTrackError"),
+          });
+          break;
+      }
+    } catch (error) {
+      botLog(moduleName, `Error in play command: ${error}`, "error");
+      console.error("Error in play command:", error);
+      await interaction.editReply({
+        content: t(locale, "errors.generalError"),
       });
-      Bun.sleep(5000).then(() => interaction.deleteReply());
-    } else {
-      const message = await channel.send("No tracks found");
-      Bun.sleep(5000).then(() => message.delete());
     }
-    return;
-  }
-  if (result.type === "PLAYLIST")
-    for (let track of result.tracks) player.queue.add(track);
-  else if (player.playing && result.type === "SEARCH")
-    player.queue.add(result.tracks[0]);
-  else if (player.playing && result.type !== "SEARCH")
-    for (let track of result.tracks) player.queue.add(track);
-  else player.queue.add(result.tracks[0]);
-  if (!player.playing) player.play();
-  if (interaction) {
-    await interaction.reply({
-      content:
-        result.type === "PLAYLIST"
-          ? `Queued ${result.tracks.length} from ${result.playlistName}`
-          : `Queued ${result.tracks[0].title}`,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-  } else {
-    const message = await channel.send(
-      result.type === "PLAYLIST"
-        ? `Queued ${result.tracks.length} from ${result.playlistName}`
-        : `Queued ${result.tracks[0].title}`
-    );
-    Bun.sleep(5000).then(() => message.delete());
-  }
-  updateEmbed(guildId);
-  return;
-};
+  };
+
+  createSlashCommand(playSlashCommandHandler, playInteractionHandler);
+  botLog(moduleName, "Registered slash command: [play]", "info");
+}

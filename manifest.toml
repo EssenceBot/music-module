@@ -1,0 +1,7 @@
+name = "music"
+fullName = "Music"
+description = "A music module for an Essence Discord bot"
+author = "Essence Bot Team"
+
+[database]
+requiresDatabase = true

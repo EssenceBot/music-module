@@ -1,91 +1,134 @@
-import type {
-  ButtonInteraction,
-  ChatInputCommandInteraction,
-  GuildMember,
-  SlashCommandBuilder,
-} from "discord.js";
-import { rainlink } from "..";
+import type { ChatInputCommandInteraction } from "discord.js";
+import type { SlashCommandBuilder } from "@discordjs/builders";
+import { createSlashCommand } from "@essence-discord-bot/api/botExtension";
+import botLog from "@essence-discord-bot/lib/log";
+import { client } from "../index.js";
+import { moduleName } from "../index.js";
+import { t } from "../lib/i18n.js";
 
-export const seekSlashCommandHandler = (slashCommand: SlashCommandBuilder) => {
-  slashCommand
-    .setName("seek")
-    .setDescription("Seek the current track")
-    .addStringOption((option) =>
-      option.setName("time").setDescription("Time to seek to").setRequired(true)
-    );
-};
+function parseTime(timeStr: string): number {
+  // Parse time in format: XhYmZs, Xh, Ym, Zs, X:Y:Z, X:Y, etc.
+  const regex = /(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/;
+  const colonFormat = /^(?:(\d+):)?(\d+):(\d+)$/; // H:M:S or M:S
 
-export const seekInteractionHandler = async (interaction: any) => {
-  const time = interaction.options.getString("time");
-  handleSeek(interaction, time);
-};
+  let hours = 0, minutes = 0, seconds = 0;
 
-export const handleSeek = async (
-  interaction: ChatInputCommandInteraction | ButtonInteraction,
-  time: string
-) => {
-  const voiceChannel = (interaction.member as GuildMember)?.voice.channel;
-  if (!voiceChannel) {
-    await interaction.reply({
-      content: "You need to be in a voice channel",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
+  // Try colon format first (H:M:S or M:S)
+  const colonMatch = timeStr.match(colonFormat);
+  if (colonMatch) {
+    if (colonMatch[1] !== undefined) {
+      // H:M:S format
+      hours = parseInt(colonMatch[1]);
+      minutes = parseInt(colonMatch[2]);
+      seconds = parseInt(colonMatch[3]);
+    } else {
+      // M:S format
+      minutes = parseInt(colonMatch[2]);
+      seconds = parseInt(colonMatch[3]);
+    }
+  } else {
+    // Try XhYmZs format
+    const match = timeStr.match(regex);
+    if (match) {
+      hours = parseInt(match[1] || "0");
+      minutes = parseInt(match[2] || "0");
+      seconds = parseInt(match[3] || "0");
+    }
   }
-  const player = rainlink.players.get(interaction.guildId as string);
-  if (!player) {
-    await interaction.reply({
-      content: "There is no player on current server",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  if (voiceChannel.id !== player.voiceId) {
-    await interaction.reply({
-      content: "You need to be in the same voice channel as the bot",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  const isSeekable = player.queue.current?.isSeekable;
-  if (!isSeekable) {
-    await interaction.reply({
-      content: "This track is not seekable",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  const timeInSeconds = parseTime(time);
-  if (timeInSeconds < 0) {
-    await interaction.reply({
-      content: "Invalid time format",
-      ephemeral: true,
-    });
-    Bun.sleep(5000).then(() => interaction.deleteReply());
-    return;
-  }
-  await player.seek(timeInSeconds);
-  await interaction.reply({
-    content: "Seeked to " + time,
-  });
-  Bun.sleep(5000).then(() => interaction.deleteReply());
-};
 
-const parseTime = (time: string) => {
-  const timeRegex =
-    /(?:\s*(?<hours>\d+)\s*h)?(?:\s*(?<minutes>\d+)\s*m)?(?:\s*(?<seconds>\d+)\s*s)?/gm;
-  const match = time.match(timeRegex);
-  if (!match || !match.groups) {
-    return -1;
-  }
-  const { hours, minutes, seconds } = match.groups;
-  return (
-    parseInt(hours ?? "0") * 3600 +
-    parseInt(minutes ?? "0") * 60 +
-    parseInt(seconds ?? "0")
-  );
-};
+  return (hours * 3600 + minutes * 60 + seconds) * 1000; // Return in milliseconds
+}
+
+export function initSeekCommand() {
+  const seekSlashCommandHandler = (slashCommand: SlashCommandBuilder) => {
+    slashCommand
+      .setName(t("pl", "commands.seek.name"))
+      .setDescription(t("pl", "commands.seek.description"))
+      .setDescriptionLocalizations({
+        "en-US": t("en-US", "commands.seek.description"),
+        "en-GB": t("en-GB", "commands.seek.description"),
+        pl: t("pl", "commands.seek.description"),
+      })
+      .addStringOption((option) =>
+        option
+          .setName(t("pl", "commands.seek.timeName"))
+          .setDescription(t("pl", "commands.seek.timeDescription"))
+          .setDescriptionLocalizations({
+            "en-US": t("en-US", "commands.seek.timeDescription"),
+            "en-GB": t("en-GB", "commands.seek.timeDescription"),
+            pl: t("pl", "commands.seek.timeDescription"),
+          })
+          .setRequired(true)
+      );
+  };
+
+  const seekInteractionHandler = async (
+    interaction: ChatInputCommandInteraction
+  ) => {
+    await interaction.deferReply();
+    const locale = interaction.locale;
+
+    try {
+      const player = client.moonlink.players.get(interaction.guildId as string);
+      
+      if (!player) {
+        await interaction.editReply({
+          content: t(locale, "errors.noPlayerActive"),
+        });
+        return;
+      }
+
+      if (!player.current) {
+        await interaction.editReply({
+          content: t(locale, "errors.noTrackPlaying"),
+        });
+        return;
+      }
+
+      const timeStr = interaction.options.getString(t("pl", "commands.seek.timeName"), true);
+      const timeMs = parseTime(timeStr);
+
+      if (timeMs === 0 || isNaN(timeMs)) {
+        await interaction.editReply({
+          content: t(locale, "errors.invalidTimeFormat"),
+        });
+        return;
+      }
+
+      if (!player.current.isSeekable) {
+        await interaction.editReply({
+          content: t(locale, "errors.trackNotSeekable"),
+        });
+        return;
+      }
+
+      if (timeMs > player.current.duration) {
+        await interaction.editReply({
+          content: t(locale, "errors.seekBeyondDuration"),
+        });
+        return;
+      }
+
+      await player.seek(timeMs);
+
+      const formattedTime = `${Math.floor(timeMs / 60000)}:${String(Math.floor((timeMs % 60000) / 1000)).padStart(2, "0")}`;
+
+      await interaction.editReply({
+        content: t(locale, "success.seeked", {
+          time: formattedTime,
+        }),
+      });
+
+      Bun.sleep(5000).then(() => interaction.deleteReply());
+    } catch (error) {
+      botLog(moduleName, `Error in seek command: ${error}`, "error");
+      console.error("Error in seek command:", error);
+      await interaction.editReply({
+        content: t(locale, "errors.generalError"),
+      });
+    }
+  };
+
+  createSlashCommand(seekSlashCommandHandler, seekInteractionHandler);
+  botLog(moduleName, "Registered slash command: [seek]", "info");
+}
