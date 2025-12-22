@@ -20,6 +20,8 @@ type TranslationKey =
   | "errors.trackNotSeekable"
   | "errors.seekBeyondDuration"
   | "errors.noPermission"
+  | "errors.invalidPosition"
+  | "errors.invalidRange"
   | "success.playlistAdded"
   | "success.trackAdded"
   | "success.trackSkipped"
@@ -32,6 +34,7 @@ type TranslationKey =
   | "success.queueShuffled"
   | "success.playingPrevious"
   | "success.seeked"
+  | "success.tracksRemoved"
   | "commands.play.name"
   | "commands.play.description"
   | "commands.play.queryName"
@@ -64,6 +67,10 @@ type TranslationKey =
   | "commands.seek.timeDescription"
   | "commands.song.name"
   | "commands.song.description"
+  | "commands.remove.name"
+  | "commands.remove.description"
+  | "commands.remove.positionName"
+  | "commands.remove.positionDescription"
   | "success.volumeSet"
   | "success.volumeCurrent"
   | "errors.invalidVolume"
@@ -103,6 +110,8 @@ const translations: Record<SupportedLocale, Record<TranslationKey, string>> = {
     "errors.trackNotSeekable": "❌ Ten utwór nie obsługuje przewijania.",
     "errors.seekBeyondDuration": "❌ Nie można przewinąć poza czas trwania utworu.",
     "errors.noPermission": "❌ Nie masz uprawnień do używania tej komendy. Wymagane uprawnienia: Administrator, Zarządzanie serwerem lub Moderowanie członków.",
+    "errors.invalidPosition": "❌ Nieprawidłowa pozycja. Kolejka zawiera utwory od 1 do {size}.",
+    "errors.invalidRange": "❌ Nieprawidłowy zakres. Użyj formatu: 21-37 lub pojedynczej liczby.",
     "success.playlistAdded": "✅ Dodano playlistę **{name}** z {count} utworami do kolejki.",
     "success.trackAdded": "✅ Dodano **{title}** wykonawcy **{author}** do kolejki.",
     "success.trackSkipped": "⏭️ Pominięto utwór **{title}**.",
@@ -115,6 +124,7 @@ const translations: Record<SupportedLocale, Record<TranslationKey, string>> = {
     "success.queueShuffled": "🔀 Kolejka została przetasowana.",
     "success.playingPrevious": "⏮️ Odtwarzam poprzedni utwór: **{title}**.",
     "success.seeked": "⏩ Przewinięto do **{time}**.",
+    "success.tracksRemoved": "🗑️ Usunięto {count} utwór(y) z kolejki.",
     "commands.play.name": "play",
     "commands.play.description": "Odtwórz utwór lub playlistę",
     "commands.play.queryName": "zapytanie",
@@ -147,6 +157,10 @@ const translations: Record<SupportedLocale, Record<TranslationKey, string>> = {
     "commands.seek.timeDescription": "Czas w formacie: 1h30m, 2:30, lub 90s",
     "commands.song.name": "song",
     "commands.song.description": "Wyświetl szczegóły aktualnie odtwarzanego utworu",
+    "commands.remove.name": "remove",
+    "commands.remove.description": "Usuń utwory z kolejki",
+    "commands.remove.positionName": "pozycja",
+    "commands.remove.positionDescription": "Pozycja utworu lub zakres (np. 5 lub 21-37)",
     "success.volumeSet": "🔊 Głośność ustawiona na **{volume}%**.",
     "success.volumeCurrent": "🔊 Aktualna głośność: **{volume}%**.",
     "errors.invalidVolume": "❌ Głośność musi być liczbą od 0 do 200.",
@@ -183,6 +197,8 @@ const translations: Record<SupportedLocale, Record<TranslationKey, string>> = {
     "errors.trackNotSeekable": "❌ This track does not support seeking.",
     "errors.seekBeyondDuration": "❌ Cannot seek beyond the track duration.",
     "errors.noPermission": "❌ You don't have permission to use this command. Required permissions: Administrator, Manage Server, or Moderate Members.",
+    "errors.invalidPosition": "❌ Invalid position. Queue contains tracks from 1 to {size}.",
+    "errors.invalidRange": "❌ Invalid range. Use format: 21-37 or a single number.",
     "success.playlistAdded": "✅ Added playlist **{name}** with {count} tracks to the queue.",
     "success.trackAdded": "✅ Added **{title}** by **{author}** to the queue.",
     "success.trackSkipped": "⏭️ Skipped **{title}**.",
@@ -195,6 +211,7 @@ const translations: Record<SupportedLocale, Record<TranslationKey, string>> = {
     "success.queueShuffled": "🔀 Queue has been shuffled.",
     "success.playingPrevious": "⏮️ Playing previous track: **{title}**.",
     "success.seeked": "⏩ Seeked to **{time}**.",
+    "success.tracksRemoved": "🗑️ Removed {count} track(s) from the queue.",
     "commands.play.name": "play",
     "commands.play.description": "Play a song or playlist",
     "commands.play.queryName": "query",
@@ -227,6 +244,10 @@ const translations: Record<SupportedLocale, Record<TranslationKey, string>> = {
     "commands.seek.timeDescription": "Time in format: 1h30m, 2:30, or 90s",
     "commands.song.name": "song",
     "commands.song.description": "Display details of the currently playing track",
+    "commands.remove.name": "remove",
+    "commands.remove.description": "Remove tracks from the queue",
+    "commands.remove.positionName": "position",
+    "commands.remove.positionDescription": "Track position or range (e.g. 5 or 21-37)",
     "success.volumeSet": "🔊 Volume set to **{volume}%**.",
     "success.volumeCurrent": "🔊 Current volume: **{volume}%**.",
     "errors.invalidVolume": "❌ Volume must be a number between 0 and 200.",
@@ -263,6 +284,8 @@ const translations: Record<SupportedLocale, Record<TranslationKey, string>> = {
     "errors.trackNotSeekable": "❌ This track does not support seeking.",
     "errors.seekBeyondDuration": "❌ Cannot seek beyond the track duration.",
     "errors.noPermission": "❌ You don't have permission to use this command. Required permissions: Administrator, Manage Server, or Moderate Members.",
+    "errors.invalidPosition": "❌ Invalid position. Queue contains tracks from 1 to {size}.",
+    "errors.invalidRange": "❌ Invalid range. Use format: 21-37 or a single number.",
     "success.playlistAdded": "✅ Added playlist **{name}** with {count} tracks to the queue.",
     "success.trackAdded": "✅ Added **{title}** by **{author}** to the queue.",
     "success.trackSkipped": "⏭️ Skipped **{title}**.",
@@ -275,6 +298,7 @@ const translations: Record<SupportedLocale, Record<TranslationKey, string>> = {
     "success.queueShuffled": "🔀 Queue has been shuffled.",
     "success.playingPrevious": "⏮️ Playing previous track: **{title}**.",
     "success.seeked": "⏩ Seeked to **{time}**.",
+    "success.tracksRemoved": "🗑️ Removed {count} track(s) from the queue.",
     "commands.play.name": "play",
     "commands.play.description": "Play a song or playlist",
     "commands.play.queryName": "query",
@@ -307,6 +331,10 @@ const translations: Record<SupportedLocale, Record<TranslationKey, string>> = {
     "commands.seek.timeDescription": "Time in format: 1h30m, 2:30, or 90s",
     "commands.song.name": "song",
     "commands.song.description": "Display details of the currently playing track",
+    "commands.remove.name": "remove",
+    "commands.remove.description": "Remove tracks from the queue",
+    "commands.remove.positionName": "position",
+    "commands.remove.positionDescription": "Track position or range (e.g. 5 or 21-37)",
     "success.volumeSet": "🔊 Volume set to **{volume}%**.",
     "success.volumeCurrent": "🔊 Current volume: **{volume}%**.",
     "errors.invalidVolume": "❌ Volume must be a number between 0 and 200.",

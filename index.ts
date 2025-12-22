@@ -13,6 +13,7 @@ import { initPreviousCommand } from "./commands/previous.js";
 import { initQueueCommand } from "./commands/queue.js";
 import { initSeekCommand } from "./commands/seek.js";
 import { initSongCommand } from "./commands/song.js";
+import { initRemoveCommand } from "./commands/remove.js";
 
 export const client = getClient() as MoonlinkClient;
 export const moduleName = "Music";
@@ -171,6 +172,7 @@ export function discordBotInit() {
   initQueueCommand();
   initSeekCommand();
   initSongCommand();
+  initRemoveCommand();
   setupEventListeners();
 }
 
