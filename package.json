@@ -8,8 +8,8 @@
     "moonlink.js": "^4.60.23"
   },
   "peerDependencies": {
-    "@types/bun": "^1.2.22",
-    "discord.js": "^14.22.1",
-    "typescript": "^5.9.2"
+    "@types/bun": "^1.3.5",
+    "discord.js": "^14.25.1",
+    "typescript": "^5.9.3"
   }
 }
