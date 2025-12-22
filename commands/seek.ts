@@ -51,7 +51,7 @@ export function initSeekCommand() {
       })
       .addStringOption((option) =>
         option
-          .setName(t("pl", "commands.seek.timeName"))
+          .setName(t("en-US", "commands.seek.timeName"))
           .setDescription(t("pl", "commands.seek.timeDescription"))
           .setDescriptionLocalizations({
             "en-US": t("en-US", "commands.seek.timeDescription"),
@@ -85,7 +85,7 @@ export function initSeekCommand() {
         return;
       }
 
-      const timeStr = interaction.options.getString(t("pl", "commands.seek.timeName"), true);
+      const timeStr = interaction.options.getString(t("en-US", "commands.seek.timeName"), true);
       const timeMs = parseTime(timeStr);
 
       if (timeMs === 0 || isNaN(timeMs)) {

@@ -19,7 +19,7 @@ export function initQueueCommand() {
       })
       .addIntegerOption((option) =>
         option
-          .setName(t("pl", "commands.queue.pageName"))
+          .setName(t("en-US", "commands.queue.pageName"))
           .setDescription(t("pl", "commands.queue.pageDescription"))
           .setDescriptionLocalizations({
             "en-US": t("en-US", "commands.queue.pageDescription"),
@@ -54,7 +54,7 @@ export function initQueueCommand() {
         return;
       }
 
-      const page = interaction.options.getInteger(t("pl", "commands.queue.pageName")) || 1;
+      const page = interaction.options.getInteger(t("en-US", "commands.queue.pageName")) || 1;
       const tracksPerPage = 10;
       const totalPages = Math.ceil(player.queue.size / tracksPerPage);
 

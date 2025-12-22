@@ -65,7 +65,7 @@ export function initVolumeCommand() {
       }
 
       const player = client.moonlink.players.get(interaction.guildId as string);
-      const volume = interaction.options.getInteger(t(locale, "commands.volume.levelName"));
+      const volume = interaction.options.getInteger(t("en-US", "commands.volume.levelName"));
 
       // If no volume specified, show current volume
       if (volume === null) {

@@ -50,7 +50,7 @@ export function initLoopCommand() {
         return;
       }
 
-      const mode = interaction.options.getString(t(locale, "commands.loop.modeName"), true);
+      const mode = interaction.options.getString(t("en-US", "commands.loop.modeName"), true);
       
       switch (mode) {
         case "off":
