@@ -55,7 +55,7 @@ export function initPlayCommand() {
       }
       const query = interaction.options.getString(t("en-US", "commands.play.queryName"), true);
 
-      if (!client.moonlink.nodes.cache.size) {
+      if (!client.moonlink.nodes.nodes.size) {
         await interaction.editReply({
           content: t(locale, "errors.noLavalinkNodes"),
         });

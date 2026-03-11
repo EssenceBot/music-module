@@ -181,7 +181,7 @@ export async function lateDiscordBotInit() {
   botLog(moduleName, "Moonlink initialized successfully.");
   botLog(
     moduleName,
-    `Connected nodes: ${client.moonlink.nodes.cache.size}`,
+    `Connected nodes: ${client.moonlink.nodes.nodes.size}`,
     "info"
   );
 }
